@@ -5,3 +5,4 @@ A quick Prometheus exporter for [Clash](https://github.com/Dreamacro/clash) inst
 + total upload/download
 + number of open connections
 + per connection upload/download
++ per chain connections, upload/download
