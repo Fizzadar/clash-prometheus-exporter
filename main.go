@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -45,9 +46,10 @@ var u url.URL
 var client http.Client
 
 type Connection struct {
-	Id       string `json:"id"`
-	Upload   int    `json:"upload"`
-	Download int    `json:"download"`
+	Id       string   `json:"id"`
+	Upload   int      `json:"upload"`
+	Download int      `json:"download"`
+	Chains   []string `json:"chains"`
 }
 
 type ConnectionsResponse struct {
@@ -56,7 +58,14 @@ type ConnectionsResponse struct {
 	Connections   []Connection
 }
 
+type ChainMetrics struct {
+	ConnectionCount int
+	DownloadTotal   int
+	UploadTotal     int
+}
+
 var (
+	// Global/instance level metrics
 	connectionsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "clash",
 		Name:      "connections",
@@ -72,6 +81,37 @@ var (
 		Name:      "upload_bytes",
 		Help:      "Total data uploaded in bytes.",
 	})
+
+	// Chain (upstream proxy) level metrics
+	chainConnectionGauges = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "clash",
+			Subsystem: "chain",
+			Name:      "connections",
+			Help:      "Number of current connections per proxy chain.",
+		},
+		[]string{"chain"},
+	)
+	chainDownloadGauges = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "clash",
+			Subsystem: "chain",
+			Name:      "download_bytes",
+			Help:      "Total data downloaded in bytes per proxy chain.",
+		},
+		[]string{"chain"},
+	)
+	chainUploadGauges = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "clash",
+			Subsystem: "chain",
+			Name:      "upload_bytes",
+			Help:      "Total data uploaded in bytes per proxy chain.",
+		},
+		[]string{"chain"},
+	)
+
+	// Conenction level metrics
 	connectionDownloadGauges = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: "clash",
@@ -123,15 +163,38 @@ func collectMetrics() {
 	totalDownloadGauge.Set(float64(response.DownloadTotal))
 	totalUploadGauge.Set(float64(response.UploadTotal))
 
+	var chainToMetrics = make(map[string]ChainMetrics)
+
 	for _, connection := range response.Connections {
 		connectionDownloadGauges.WithLabelValues(connection.Id).Set(float64(connection.Download))
 		connectionUploadGauges.WithLabelValues(connection.Id).Set(float64(connection.Upload))
+
+		var chainKey string = strings.Join(connection.Chains, ",")
+
+		chainMetrics, exists := chainToMetrics[chainKey]
+		if exists {
+			chainMetrics.ConnectionCount += 1
+			chainMetrics.DownloadTotal += connection.Download
+			chainMetrics.UploadTotal += connection.Upload
+		} else {
+			chainToMetrics[chainKey] = ChainMetrics{
+				ConnectionCount: 1,
+				DownloadTotal: connection.Download,
+				UploadTotal: connection.Upload,
+			}
+		}
+	}
+
+	for chainKey, chainMetrics := range chainToMetrics {
+		chainConnectionGauges.WithLabelValues(chainKey).Set(float64(chainMetrics.ConnectionCount))
+		chainDownloadGauges.WithLabelValues(chainKey).Set(float64(chainMetrics.DownloadTotal))
+		chainUploadGauges.WithLabelValues(chainKey).Set(float64(chainMetrics.UploadTotal))
 	}
 }
 
 func collectMetricsLoop() {
 	u = url.URL{Scheme: "http", Host: *clashAddr, Path: "/connections"}
-	log.Printf("connecting to %s", u.String())
+	log.Printf("Connecting to %s", u.String())
 
 	client = http.Client{
 		Timeout: *clashTimeout,
@@ -151,6 +214,9 @@ func main() {
 	prometheus.MustRegister(totalUploadGauge)
 	prometheus.MustRegister(connectionDownloadGauges)
 	prometheus.MustRegister(connectionUploadGauges)
+	prometheus.MustRegister(chainConnectionGauges)
+	prometheus.MustRegister(chainDownloadGauges)
+	prometheus.MustRegister(chainUploadGauges)
 
 	go collectMetricsLoop()
 
