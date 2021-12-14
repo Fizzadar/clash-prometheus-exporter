@@ -155,6 +155,16 @@ func main() {
 	go collectMetricsLoop()
 
 	http.Handle(*metricsPath, promhttp.Handler())
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`<html>
+			<head><title>Clash Prometheus Exporter</title></head>
+			<body>
+			<h1>Clash Prometheus Exporter</h1>
+			<p><a href='` + *metricsPath + `'>Metrics</a></p>
+			</body>
+			</html>`))
+	})
+
 	log.Printf("Starting listen on http://%s", *listenAddr)
 	log.Fatal(http.ListenAndServe(*listenAddr, nil))
 }
