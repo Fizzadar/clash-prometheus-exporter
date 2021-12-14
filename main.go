@@ -34,6 +34,11 @@ var (
 		30*time.Second,
 		"Interval to collect metrics from clash",
 	)
+	metricsPath = flag.String(
+		"metrics-path",
+		"/metrics",
+		"Path to serve metrics at",
+	)
 )
 
 var u url.URL
@@ -149,6 +154,7 @@ func main() {
 
 	go collectMetricsLoop()
 
-	http.Handle("/metrics", promhttp.Handler())
+	http.Handle(*metricsPath, promhttp.Handler())
+	log.Printf("Starting listen on http://%s", *listenAddr)
 	log.Fatal(http.ListenAndServe(*listenAddr, nil))
 }
