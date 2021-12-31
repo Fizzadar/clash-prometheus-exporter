@@ -173,9 +173,12 @@ func collectMetrics() {
 
 		chainMetrics, exists := chainToMetrics[chainKey]
 		if exists {
-			chainMetrics.ConnectionCount += 1
-			chainMetrics.DownloadTotal += connection.Download
-			chainMetrics.UploadTotal += connection.Upload
+			// TODO: don't do this, instead add methods to ChainMetrics?
+			chainToMetrics[chainKey] = ChainMetrics{
+				ConnectionCount: chainMetrics.ConnectionCount + 1,
+				DownloadTotal: chainMetrics.DownloadTotal + connection.Download,
+				UploadTotal: chainMetrics.UploadTotal + connection.Upload,
+			}
 		} else {
 			chainToMetrics[chainKey] = ChainMetrics{
 				ConnectionCount: 1,
