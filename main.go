@@ -64,6 +64,19 @@ type ChainMetrics struct {
 	UploadTotal     int
 }
 
+func (metrics *ChainMetrics) addConnection() {
+	metrics.ConnectionCount += 1
+}
+
+func (metrics *ChainMetrics) addDownload(download int) {
+	metrics.DownloadTotal += download
+}
+
+func (metrics *ChainMetrics) addUpload(upload int) {
+	metrics.UploadTotal += upload
+}
+
+
 var (
 	// Global/instance level metrics
 	connectionsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
@@ -163,7 +176,7 @@ func collectMetrics() {
 	totalDownloadGauge.Set(float64(response.DownloadTotal))
 	totalUploadGauge.Set(float64(response.UploadTotal))
 
-	var chainToMetrics = make(map[string]ChainMetrics)
+	var chainToMetrics = make(map[string]*ChainMetrics)
 
 	for _, connection := range response.Connections {
 		connectionDownloadGauges.WithLabelValues(connection.Id).Set(float64(connection.Download))
@@ -173,14 +186,11 @@ func collectMetrics() {
 
 		chainMetrics, exists := chainToMetrics[chainKey]
 		if exists {
-			// TODO: don't do this, instead add methods to ChainMetrics?
-			chainToMetrics[chainKey] = ChainMetrics{
-				ConnectionCount: chainMetrics.ConnectionCount + 1,
-				DownloadTotal: chainMetrics.DownloadTotal + connection.Download,
-				UploadTotal: chainMetrics.UploadTotal + connection.Upload,
-			}
+			chainMetrics.addConnection()
+			chainMetrics.addDownload(connection.Download)
+			chainMetrics.addUpload(connection.Upload)
 		} else {
-			chainToMetrics[chainKey] = ChainMetrics{
+			chainToMetrics[chainKey] = &ChainMetrics{
 				ConnectionCount: 1,
 				DownloadTotal: connection.Download,
 				UploadTotal: connection.Upload,
