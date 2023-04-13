@@ -7,8 +7,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"time"
 	"strings"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -42,8 +42,10 @@ var (
 	)
 )
 
-var u url.URL
-var client http.Client
+var (
+	u      url.URL
+	client http.Client
+)
 
 type Connection struct {
 	Id       string   `json:"id"`
@@ -75,7 +77,6 @@ func (metrics *ChainMetrics) addDownload(download int) {
 func (metrics *ChainMetrics) addUpload(upload int) {
 	metrics.UploadTotal += upload
 }
-
 
 var (
 	// Global/instance level metrics
@@ -146,6 +147,13 @@ var (
 )
 
 func collectMetrics() {
+	// Clear any existing metrics since we refetch them all
+	chainConnectionGauges.Reset()
+	chainDownloadGauges.Reset()
+	chainUploadGauges.Reset()
+	connectionDownloadGauges.Reset()
+	connectionUploadGauges.Reset()
+
 	req, reqErr := http.NewRequest(http.MethodGet, u.String(), nil)
 	if reqErr != nil {
 		log.Fatal(reqErr)
@@ -176,7 +184,7 @@ func collectMetrics() {
 	totalDownloadGauge.Set(float64(response.DownloadTotal))
 	totalUploadGauge.Set(float64(response.UploadTotal))
 
-	var chainToMetrics = make(map[string]*ChainMetrics)
+	chainToMetrics := make(map[string]*ChainMetrics)
 
 	for _, connection := range response.Connections {
 		connectionDownloadGauges.WithLabelValues(connection.Id).Set(float64(connection.Download))
@@ -192,8 +200,8 @@ func collectMetrics() {
 		} else {
 			chainToMetrics[chainKey] = &ChainMetrics{
 				ConnectionCount: 1,
-				DownloadTotal: connection.Download,
-				UploadTotal: connection.Upload,
+				DownloadTotal:   connection.Download,
+				UploadTotal:     connection.Upload,
 			}
 		}
 	}
