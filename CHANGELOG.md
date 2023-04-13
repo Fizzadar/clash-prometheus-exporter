@@ -1,3 +1,7 @@
+# v0.2.2
+
++ Reset gauges with vectors on collect
+
 # v0.2.1
 
 + Fix bug in calculation of per-chain metrics
